@@ -173,12 +173,13 @@ for x in $HAPS
 do
     species=`basename $x`
     # mix 1 copy of species mers and 1 copy of all species mers
-    cat $species".t0.mer.fa" *.t0.mer.fa >$species".t1.miexed.fa"
+    cat $species".t0.mer.fa" *.t0.mer.fa >$species".t1.mixed.fa"
     # count mixed mers
-    $JELLY count -m $MER -s $MEMORY"G" -t $CPU -C -o $species".t1.js" $species".t1.miexed.fa"
+    $JELLY count -m $MER -s $MEMORY"G" -t $CPU -C -o $species".t1.js" $species".t1.mixed.fa"
     # count==2 refer to species unique mers
     $JELLY dump -L 2 -U 2 $species".t1.js"          >$species".t1.mer.unique.fa"
 done
+rm -rf *.t1.mixed.fa
 date
 echo " stage 2 extract unique & filter mers by jellyfish ..."
 for x in $HAPS
@@ -191,6 +192,7 @@ do
     # extrat both unique and filter mers
     $JELLY dump -t -c -L 2 -U 2    $species".t2.js" | awk '{print $1}' >$species".t2.unique.filter.mer"
 done
+rm -rf *.t2.mixed.fa
 echo "extract unique mers done..."
 date
 ###############################################################################
