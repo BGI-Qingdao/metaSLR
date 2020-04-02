@@ -22,34 +22,33 @@ Options  :
                       ( note : this script use haplotype file name as species name.)
                       (        please make sure the basename of each haplotype is not exactly same !!! )
         --meta        meta stLFR reads file in fastq format.
-                      file in gzip format is accepted, but filename must end by .gz
+                      file in gzip format is accepted, but filename must end by ".gz".
         --thread      threads num.
-                      [ optioal , default 8 thread ]
+                      [ optional , default 8 thread. ]
         --memory      x (GB) of memory to initial hash table by jellyfish.
-                      (noted: real memory used maybe greater than this )
-                      [ optioal , default 20GB ]
+                      (noted: real memory used maybe greater than this. )
+                      [ optional , default 20GB. ]
         --jellyfish   jellyfish path.
-                      [ optioal , default jellyfish ]
+                      [ optional , default jellyfish. ]
         --mer         mer-size
-                      [ optioal , default 21 ]
-        --lower       ignore mer with cout < lower.
-                      [ optioal , default 1 ]
-        --upper       ignore mer with cout > upper.
-                      [ optioal , default 33 ]
+                      [ optional , default 21. ]
+        --lower       ignore mer with count < lower.
+                      [ optional , default 1. ]
+        --upper       ignore mer with count > upper.
+                      [ optional , default 33. ]
         --help        print this usage message.
 
 Examples :
-    ./metaSLR.sh --haplotype  s1.a --haplotype s2.fa --haplotype s3.fa --meta read.fq.gz
+    ./metaSLR.sh --haplotype  s1.fa --haplotype s2.fa --haplotype s3.fa --meta read.fq.gz
 
-    ./metaSLR.sh --haplotype  s1.a --haplotype s2.fa --haplotype s3.fa \
+    ./metaSLR.sh --haplotype  s1.fa --haplotype s2.fa --haplotype s3.fa \
                      --meta read1.fq --meta read2.fq
 
-    ./metaSLR.sh --haplotype  s1.a --haplotype s2.fa --haplotype s3.fa \
+    ./metaSLR.sh --haplotype  s1.fa --haplotype s2.fa --haplotype s3.fa \
                      --meta read1.fq --meta read2.fq \
                      --memory 20 --thread 20 \
                      --mer 21 --lower=1 --upper=33 \
                      --jellyfish /home/software/jellyfish/jellyfish-linux
-
 ```
 
 Enjoy !
