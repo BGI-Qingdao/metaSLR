@@ -11,6 +11,8 @@ function usage(){
     echo ""
     echo "Options  :"
     echo "        --haplotype   haplotype reference file in fasta format."
+    echo "                      ( note : this script use haplotype file name as species name.)"
+    echo "                      (        please make sure the basename of each haplotype is not exactly same !!! ) "
     echo "        --meta        meta stLFR reads file in fastq format."
     echo "                      file in gzip format is accepted, but filename must end by .gz"
     echo "        --thread      threads num."
@@ -187,7 +189,7 @@ do
     # count unique and filer mers
     $JELLY count -m $MER -s $MEMORY"G" -t $CPU -C -o $species".t2.js" $species".t2.mixed.fa"
     # extrat both unique and filter mers
-    $JELLY dump -t -c -L 2 -U 2 -o $species".t2.js" | awk '{print $1}' >$species".t2.unique.filter.mer"
+    $JELLY dump -t -c -L 2 -U 2    $species".t2.js" | awk '{print $1}' >$species".t2.unique.filter.mer"
 done
 echo "extract unique mers done..."
 date
