@@ -173,12 +173,20 @@ echo " stage 1 extract unique mers by jellyfish ..."
 for x in $HAPS
 do
     species=`basename $x`
-    # mix 1 copy of species mers and 1 copy of all species mers
-    cat $species".t0.mer.fa" *.t0.mer.fa >$species".t1.mixed.fa"
+    others=""
+    for ot in $HAPS
+    do
+        if [[ $ot != $x ]] ; then
+            name=$ot".t0.mer.fa"
+            others=$others" "$name" "$name
+        fi
+    done
+    # mix 1 copy of species mers and 2 copy of all other species mers
+    cat $species".t0.mer.fa"  $others >$species".t1.mixed.fa"
     # count mixed mers
     $JELLY count -m $MER -s $MEMORY"G" -t $CPU -C -o $species".t1.js" $species".t1.mixed.fa"
-    # count==2 refer to species unique mers
-    $JELLY dump -L 2 -U 2 $species".t1.js"          >$species".t1.mer.unique.fa"
+    # count==1 refer to species unique mers
+    $JELLY dump -L 1 -U 1 $species".t1.js"          >$species".t1.mer.unique.fa"
 done
 rm -rf *.t1.mixed.fa
 date
