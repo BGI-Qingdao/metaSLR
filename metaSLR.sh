@@ -177,7 +177,7 @@ do
     for ot in $HAPS
     do
         tn=`basename $ot`
-        if [[ $tn != $x ]] ; then
+        if [[ $tn != $species ]] ; then
             name=$tn".t0.mer.fa"
             others=$others" "$name" "$name
         fi
