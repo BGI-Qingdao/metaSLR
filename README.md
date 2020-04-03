@@ -19,6 +19,7 @@ phase meta stLFR reads based on reference of each species.
 
 Options  :
         --haplotype   haplotype reference file in fasta format.
+                      ( note : gzip format IS NOT supported. )
                       ( note : this script use haplotype file name as species name.)
                       (        please make sure the basename of each haplotype is not exactly same !!! )
         --meta        meta stLFR reads file in fastq format.

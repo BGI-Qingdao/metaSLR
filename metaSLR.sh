@@ -11,6 +11,7 @@ function usage(){
     echo ""
     echo "Options  :"
     echo "        --haplotype   haplotype reference file in fasta format."
+    echo "                      ( note : gzip format IS NOT supported. )"
     echo "                      ( note : this script use haplotype file name as species name.)"
     echo "                      (        please make sure the basename of each haplotype is not exactly same !!! ) "
     echo "        --meta        meta stLFR reads file in fastq format."
