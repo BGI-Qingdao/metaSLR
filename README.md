@@ -1,7 +1,7 @@
 # metaSLR
 phase stLFR reads based on reference ( or assembly scaffold ) of each species.
 
-## INSTALl
+## INSTALL
 
 ```
 git clone https://github.com/BGI-Qingdao/metaSLR.git
