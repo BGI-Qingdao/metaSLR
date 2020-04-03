@@ -176,8 +176,9 @@ do
     others=""
     for ot in $HAPS
     do
-        if [[ $ot != $x ]] ; then
-            name=$ot".t0.mer.fa"
+        tn=`basename $ot`
+        if [[ $tn != $x ]] ; then
+            name=$tn".t0.mer.fa"
             others=$others" "$name" "$name
         fi
     done
