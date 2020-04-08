@@ -182,7 +182,7 @@ do
             others=$others" "$name" "$name
         fi
     done
-    echo "    Mix : "$species".t0.mer.fa  "$others
+    #echo "    Mix : "$species".t0.mer.fa  "$others
     # mix 1 copy of species mers and 2 copy of all other species mers
     cat $species".t0.mer.fa"  $others >$species".t1.mixed.fa"
     # count mixed mers
@@ -198,7 +198,7 @@ do
     species=`basename $x`
     # mix unique mers and filter mers
     cat  $species".t1.mer.unique.fa" $species".t0.mer.filter.fa" >$species".t2.mixed.fa"
-    echo "Mix "$species".t1.mer.unique.fa "$species".t0.mer.filter.fa"
+    #echo "Mix "$species".t1.mer.unique.fa "$species".t0.mer.filter.fa"
     # count unique and filer mers
     $JELLY count -m $MER -s $MEMORY"G" -t $CPU -C -o $species".t2.js" $species".t2.mixed.fa"
     # extrat both unique and filter mers

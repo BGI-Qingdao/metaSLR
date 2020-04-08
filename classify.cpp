@@ -85,14 +85,30 @@ int getHapCount(const std::map<int,int> & data , int hap){
     return 0 ;
 }
 
-void printBarcodeInfos(const BarcodeCache& g_barcode_haps){
+std::string getSpeciesName(const std::string & file){
+    int start  = 0 ;
+    for( int i = 0 ; i < (int)file.size() ; i ++){
+        if( file.at(i)== '/')
+            start = i ;
+    }
+    return file.substr(start);
+}
+
+void printBarcodeInfos(const BarcodeCache& g_barcode_haps , 
+        const std::vector<std::string> & haps){
+    std::cout<<"barcode_str\thap_result";
+    for( int i = 0 ; i < (int)g_kmers.size() ; i ++ ){
+        std::cout<<'\t'<<getSpeciesName(haps.at(i));
+    }
+    std::cout<<'\n';
     for(const auto & pair : g_barcode_haps.barcode_haps){
         std::cout<<pair.first;
         const auto & data=pair.second;
         std::cout<<'\t'<<getHap(pair.first,data);
         for( int i = 0 ; i < (int)g_kmers.size() ; i ++ )
             std::cout<<'\t'<<getHapCount(data,i);
-        std::cout<<'\t'<<getHapCount(data,-1)<<'\n';
+        std::cout<<'\n';
+        //std::cout<<'\t'<<getHapCount(data,-1)<<'\n';
     }
 }
 
@@ -185,6 +201,7 @@ struct MultiThread {
         delete [] locks;
         delete [] barcode_caches;
     }
+
     void process_reads(const std::string & head ,
                          const std::string & seq , int index) {
         std::vector<int> vote;
@@ -198,21 +215,15 @@ struct MultiThread {
                     vote[j] ++ ;
             }
         }
-        int first = 0 , second = 0 , first_index = -1 ;
+        bool found = false;
+        std::string barcode = parseName(head);
         for( int i = 0 ; i< (int)g_kmers.size() ; i++ ){
-            if( vote[i] > first ) { 
-                second = first ;
-                first = vote[i];
-                first_index = i ;
-            }
-            else if( vote[i] > second ){
-                second = vote[i];
+            if( vote[i] > 0 ) {
+                barcode_caches[index].IncrBarcodeHaps(barcode,i,vote[i]);
+                found = true;
             }
         }
-        std::string barcode = parseName(head);
-        if (first > 0 && first_index != -1 && first > second ) 
-            barcode_caches[index].IncrBarcodeHaps(barcode,first_index);
-        else
+        if ( ! found )
             barcode_caches[index].IncrBarcodeHaps(barcode,-1);
     }
 
@@ -359,7 +370,7 @@ int main(int argc ,char ** argv ){
         std::cerr<<"__process read done__"<<std::endl;
     }
     std::cerr<<"__print result__"<<std::endl;
-    printBarcodeInfos(data);
+    printBarcodeInfos(data,haps);
     logtime();
     std::cerr<<"__END__"<<std::endl;
 }
