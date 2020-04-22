@@ -1,16 +1,20 @@
 #include <iostream>
 #include <map>
-#include <set>
+#include <unordered_set>
 #include <fstream>
 #include <cassert>
 #include <ctime>
 #include <thread>
 #include <stack>
 #include <mutex>
+#include <array>
 #include <vector>
 #include <chrono>
 #include <getopt.h>
 #include "gzstream/gzstream.h"
+#include "kmer/kmer.h"
+int Kmer::overlap = 0 ;
+Kmer Kmer::WORDFILTER ;
 void logtime() {
     time_t now = time(0);
     char* dt = ctime(&now);
@@ -19,22 +23,23 @@ void logtime() {
 //
 // load & cache maternal unique kmer & paternal unique kmer
 //
-std::vector<std::set<std::string>> g_kmers;
+std::vector<std::unordered_set<Kmer>> g_kmers;
 int g_K=0;
 void load_kmers(const std::string & file,int index){
     assert( g_kmers.size() == index );
-    g_kmers.push_back(std::set<std::string>());
+    g_kmers.push_back(std::unordered_set<Kmer>());
     std::ifstream ifs(file);
     std::string line;
     int total_kmer = 0 ;
     if(index==0){
         std::getline(ifs,line);
         g_K = line.size();
-        g_kmers[index].insert(line);
+        Kmer::InitFilter(g_K);
+        g_kmers[index].insert(Kmer::str2Kmer(BaseStr::str2BaseStr(line)));
         total_kmer++;
     }
     while(!std::getline(ifs,line).eof()){
-        g_kmers[index].insert(line);
+        g_kmers[index].insert(Kmer::str2Kmer(BaseStr::str2BaseStr(line)));
         total_kmer++;
     }
     std::cerr<<"Recorded "<<total_kmer<<" haplotype "<<index<<" specific "<<g_K<<"-mers\n"; 
@@ -113,35 +118,6 @@ void printBarcodeInfos(const BarcodeCache& g_barcode_haps ,
 }
 
 //
-// kmer relate functions
-//
-std::map<char,char> g_oppo ;
-void InitMap(){
-    g_oppo['a']='T';
-    g_oppo['A']='T';
-    g_oppo['g']='C';
-    g_oppo['G']='C';
-    g_oppo['c']='G';
-    g_oppo['C']='G';
-    g_oppo['t']='A';
-    g_oppo['T']='A';
-}
-std::string reverse_complement(const std::string & kmer){
-    std::string ret = kmer;
-    for(int i = 0 ; i< (int)kmer.size(); i++)
-        ret[kmer.size()-i-1] = g_oppo[kmer[i]];
-    return ret ;
-}
-
-std::string get_cannonical(const std::string & kmer){
-   std::string rc = reverse_complement(kmer);
-   if (rc < kmer)
-      return rc;
-   else
-      return kmer;
-}
-
-//
 //reads relate functions
 //
 
@@ -158,12 +134,21 @@ std::string parseName(const std::string & head){
     return head.substr(s+1,e-s-1);
 }
 
+#define max_buffer 1024
+struct Buffer{
+    std::array<std::string,max_buffer> heads;
+    std::array<std::string,max_buffer> seqs ;
+    void Init() { size = 0 ; }
+    int size ;
+};
+
 struct MultiThread {
     int t_nums ;
     bool end;
     bool busy;
     void Worker(int index){
         std::pair<std::string,std::string> job;
+        Buffer buffer;
         while(true){
             locks[index].lock();
             if( caches[index].empty() ){
@@ -174,12 +159,14 @@ struct MultiThread {
                 continue;
             }
             if( ! caches[index].empty() ){
-                job=caches[index].top();
-                if( caches[index].size() > 10000000 ) busy = true ;
-                else if ( caches[index].size() < 300000 ) busy = false ;
+                //job=caches[index].top();
+                if( caches[index].size() > 300 ) busy = true ;
+                else if ( caches[index].size() < 50 ) busy = false ;
+                std::swap(buffer,caches[index].top());
                 caches[index].pop();
                 locks[index].unlock();
-                process_reads(job.first,job.second,index);
+                for( int i = 0 ; i < buffer.size ; i ++ )
+                    process_reads(buffer.heads.at(i),buffer.seqs.at(i),index);
             } else 
                 locks[index].unlock();
         }
@@ -192,7 +179,7 @@ struct MultiThread {
         busy = false;
         end=false;
         for(int i = 0 ; i< t_num ; i++){
-            caches.push_back(std::stack< std::pair<std::string,std::string> >());
+            caches.push_back(std::stack<Buffer>());
             threads[i] = new std::thread([this,i](){int index=i ;Worker(index); });
         }
     }
@@ -201,22 +188,30 @@ struct MultiThread {
         delete [] locks;
         delete [] barcode_caches;
     }
-
+    bool containN(const std::string & read){
+        for( char c : read ) if ( c == 'N' ) return true ;
+        return false ; 
+    }
     void process_reads(const std::string & head ,
-                         const std::string & seq , int index) {
+                         const std::string & read , int index) {
+        std::string barcode = parseName(head);
+        if( containN(read) ){
+            barcode_caches[index].IncrBarcodeHaps(barcode,-1,1);
+            return ;
+        }
         std::vector<int> vote;
         for( int i = 0 ; i< (int)g_kmers.size() ; i++ )
             vote.push_back(0);
-
-        for( int i = 0 ; i <(int)seq.size()-g_K+1;i++ ){
-            std::string kmer = get_cannonical(seq.substr(i,g_K));
+        std::vector<Kmer> kmers=Kmer::chopRead2Kmer(BaseStr::str2BaseStr(read));
+        //for( int i = 0 ; i <(int)seq.size()-g_K+1;i++ ){
+        for(int i = 0 ; i <(int)kmers.size();i++){
+            const Kmer & kmer = kmers.at(i);
             for( int j = 0 ; j< (int)g_kmers.size() ; j++ ) {
                 if( g_kmers[j].find(kmer) != g_kmers[j].end() )
                     vote[j] ++ ;
             }
         }
         bool found = false;
-        std::string barcode = parseName(head);
         for( int i = 0 ; i< (int)g_kmers.size() ; i++ ){
             if( vote[i] > 0 ) {
                 barcode_caches[index].IncrBarcodeHaps(barcode,i,vote[i]);
@@ -227,13 +222,14 @@ struct MultiThread {
             barcode_caches[index].IncrBarcodeHaps(barcode,-1);
     }
 
-    void submit(const std::string & head ,const std::string & seq){
+    //void submit(const std::string & head ,const std::string & seq){
+    void submit(const Buffer & buffer ){
         static long index = 0;
         while( busy ) { std::this_thread::sleep_for(std::chrono::seconds(1));}
         index ++ ;
         int id = index % t_nums;
         locks[id].lock();
-        caches[id].push(std::make_pair(head,seq));
+        caches[id].push(buffer);
         locks[id].unlock();
     }
     void wait(){
@@ -246,7 +242,7 @@ struct MultiThread {
         for(int i = 0 ; i<t_nums ;i++)
             final_data.Add(barcode_caches[i]);
     }
-    std::vector<std::stack< std::pair<std::string,std::string> >>  caches;
+    std::vector<std::stack< Buffer >>  caches;
     std::mutex * locks;
     std::thread ** threads; 
     BarcodeCache * barcode_caches;
@@ -270,11 +266,24 @@ void processFastq(const std::string & file,int t_num,BarcodeCache& data){
         in = new igzstream(file.c_str());
     else 
         in = new std::ifstream(file);
+    Buffer buffer ;
+    buffer.Init();
     while(!std::getline(*in,head).eof()){
         std::getline(*in,seq);
-        mt.submit(head,seq);
+        //mt.submit(head,seq);
+        buffer.heads.at(buffer.size) = head ;
+        buffer.seqs.at(buffer.size) = seq;
+        buffer.size ++ ;
+        if ( buffer.size >= max_buffer ){
+            mt.submit(buffer);
+            buffer.Init();
+        }
         std::getline(*in,tmp);
         std::getline(*in,tmp);
+    }
+    if( buffer.size > 0 ){
+        mt.submit(buffer);
+        buffer.Init();
     }
     mt.end=true;
     mt.wait();
@@ -285,21 +294,27 @@ void processFastq(const std::string & file,int t_num,BarcodeCache& data){
 void InitAdaptor(){
     std::string r1("CTGTCTCTTATACACATCTTAGGAAGACAAGCACTGACGACATGATCACCAAGGATCGCCATAGTCCATGCTAAAGGACGTCAGGAAGGGCGATCTCAGG");
     std::string r2("TCTGCTGAGTCGAGAACGTCTCTGTGAGCCAAGGAGTTGCTCTGGCGACGGCCACGAAGCTAACAGCCAATCTGCGTAACAGCCAAACCTGAGATCGCCC");
-    for(int i = 0 ; i <(int)r1.size()-g_K+1;i++){
-        std::string kmer = get_cannonical(r1.substr(i,g_K));
+    std::vector<Kmer> kmers = Kmer::chopRead2Kmer(BaseStr::str2BaseStr(r1));
+    for(int i = 0 ; i <(int)kmers.size();i++){
+    //for(int i = 0 ; i <(int)r1.size()-g_K+1;i++){
+        const Kmer & kmer = kmers.at(i);
+        //std::string kmer = get_cannonical(r1.substr(i,g_K));
         for ( int j = 0 ; j < (int)g_kmers.size() ; j ++ ){
             if( g_kmers[j].find(kmer) != g_kmers[j].end() ){
                 g_kmers[j].erase(kmer);
-                std::cerr<<" INFO : erase adaptor kmer from hap "<<j<<" ; kmer="<<kmer<<std::endl;
+                std::cerr<<" INFO : erase adaptor kmer from hap "<<j<<" ; kmer="<<BaseStr::BaseStr2Str(Kmer::ToBaseStr(kmer))<<std::endl;
             }
         }
     }
-    for(int i = 0 ; i <(int)r2.size()-g_K+1;i++){
-        std::string kmer = get_cannonical(r2.substr(i,g_K));
+    std::vector<Kmer> kmers2 = Kmer::chopRead2Kmer(BaseStr::str2BaseStr(r2));
+    for(int i = 0 ; i <(int)kmers2.size();i++){
+    //for(int i = 0 ; i <(int)r1.size()-g_K+1;i++){
+        const Kmer & kmer = kmers2.at(i);
+        //std::string kmer = get_cannonical(r1.substr(i,g_K));
         for ( int j = 0 ; j < (int)g_kmers.size() ; j ++ ){
             if( g_kmers[j].find(kmer) != g_kmers[j].end() ){
                 g_kmers[j].erase(kmer);
-                std::cerr<<" INFO : erase adaptor kmer from hap "<<j<<" ; kmer="<<kmer<<std::endl;
+                std::cerr<<" INFO : erase adaptor kmer from hap "<<j<<" ; kmer="<<BaseStr::BaseStr2Str(Kmer::ToBaseStr(kmer))<<std::endl;
             }
         }
     }
@@ -310,11 +325,41 @@ void printUsage() {
     std::cerr<<"output format: \n\tbarcode haplotype(0/1/2.../n/-1) read_count_hap0 read_count_hap1 ...read_count_hapn read_count_hap-1"<<std::endl;
     std::cerr<<"notice : --read accept file in gzip format , but file must end by \".gz\""<<std::endl;
 }
+
+void TestAll(){
+    assert(parseName("VSDSDS#XXX_xxx_s/1")=="XXX_xxx_s");
+    Kmer::InitFilter(5);
+    auto str1=BaseStr::str2BaseStr("AGCTC");
+    int  t1[] = { '\000','\003','\001','\002','\001'};
+    for( int i = 0 ; i <5 ; i++ ) assert(str1[i] == t1[i]);
+    auto str2 = BaseStr::str2BaseStr("GAGCT");
+    int  t2[] = {'\003','\000','\003','\001','\002'};
+    for( int i = 0 ; i <5 ; i++ ) assert(str2[i] == t2[i]);
+                         // 00 1101 1001
+    assert(Kmer::str2Kmer(BaseStr::str2BaseStr("AGCTC")).low == 0xD9);
+    assert(Kmer::str2Kmer(BaseStr::str2BaseStr("AGCTC")).high == 0);
+    assert(Kmer::str2Kmer(BaseStr::str2BaseStr("GAGCT")).low == 0xD9);
+    assert(Kmer::str2Kmer(BaseStr::str2BaseStr("GAGCT")).high == 0);
+    auto kmers = Kmer::chopRead2Kmer(BaseStr::str2BaseStr("GAGCTA"));
+    assert(kmers.size() == 2 );
+    // GAGCT->AGCTC 00 1101 1001 -> 0xD9
+    // AGCTA        00 1101 1000 -> 0xD8
+    assert(kmers[0].high == 0 );
+    assert(kmers[0].low == 0xD9 );
+    assert(kmers[1].high == 0 );
+    assert(kmers[1].low == 0xD8 );
+    std::string k1 = BaseStr::BaseStr2Str(Kmer::ToBaseStr(kmers[0]));
+    std::string k2 = BaseStr::BaseStr2Str(Kmer::ToBaseStr(kmers[1]));
+    assert(k1 == "AGCTC");
+    assert(k2 == "AGCTA");
+}
+
 //
 // Main function
 //
 
 int main(int argc ,char ** argv ){
+    TestAll();
     static struct option long_options[] = {
         {"hap",  required_argument,  NULL, 'k'},
         {"read", required_argument,  NULL, 'r'},
@@ -350,10 +395,6 @@ int main(int argc ,char ** argv ){
         printUsage();
         return -1;
     }
-    InitMap();
-    assert(parseName("VSDSDS#XXX_xxx_s/1")=="XXX_xxx_s");
-    assert(get_cannonical("AGCTA")=="AGCTA");
-    assert(get_cannonical("TGCTT")=="AAGCA");
     std::cerr<<"__START__"<<std::endl;
     logtime();
     for( int i = 0 ; i < (int)haps.size() ; i++ ) {
