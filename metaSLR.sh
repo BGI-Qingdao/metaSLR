@@ -244,6 +244,7 @@ for x in $META
 do
     name=`basename $x`
     if [[ ${name: -3} == ".gz" ]] ; then 
+        name=${name%%.gz}
         for file in $HAPS
         do
             species=`basename $file`
